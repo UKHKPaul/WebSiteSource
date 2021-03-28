@@ -562,36 +562,89 @@ class cameraTool (object):
 
 
 
+def getPossibleStorage():
+
+	possibleDrives=[]
+	command = "lsblk"
+
+		
+	#print ("sending command **  {0}  **".format(command))
+	respose = pexpect.spawn(command)
+
+	nextLine = str(respose.readline(),'UTF-8')
+
+	while(nextLine!=""):
+		#print("response '{0}'".format(nextLine))
+		drivePath = getParam(nextLine,1)
+		if("─sd" in drivePath):
+			#worth checking
+			startPos = drivePath.find("sd")
+			#print("found at {0}".format(startPos))
+			drivePath = drivePath[startPos:]
+			drivePath = r"/dev/"+drivePath
+			possibleDrives.append(drivePath)
+			#print("found {0}".format(drivePath))
+		
+		nextLine = str(respose.readline(),'UTF-8')
+
+	return(possibleDrives)
+
+
+usbDevicePath=""
+
 def  regularCheck():
 	global usbmounted
+	global usbDevicePath
 	#print("checking for USB")
-	try:
-		if Path('/dev/sda1').exists():
-			#print("USB exists")
-			if(usbmounted == False):
-				print ("USB Inserted - mounting")
-				statusDisplay("New USB Detected","",0xFFE0)
-				usbmounted = True
-				#mount, unmount, remount should help recover from and invalid disconnects (i.e. removed uncleanly)
-				os.system(r'sudo mount -o uid=pi,gid=pi /dev/sda1 /mnt/usb')
-				sleep(0.5)
-				os.system(r'sudo umount /dev/sda1')
-				sleep(0.5)
-				os.system(r'sudo mount -o uid=pi,gid=pi /dev/sda1 /mnt/usb')
-				sleep(0.5)
-				print ("USB mounted")
-		else:
-			if(usbmounted ==True):
-				print ("Error USB ejected without clean removal")
-				statusDisplay("USB was removed","",0xF800)
-				os.chdir(r'/home/pi')
-				usbmounted = False
-				os.system(r'sudo umount /dev/sda1')
-				sleep(1)
-				print ("USB unmounted")
+	if(not usbmounted):
+		#first step is to find all the possible drives on the system
+		drivesToCheck = getPossibleStorage()
+		if(len(drivesToCheck)>0):
+			print("Drives to check")
+			for drive in drivesToCheck:
+				if(not usbmounted):
+					try:
+						print("checking drive {0}".format(drive))
+						#print ("USB Inserted - mounting")
+						statusDisplay("New USB Detected","",0xFFE0)
+						#mount, unmount, remount should help recover from and invalid disconnects (i.e. removed uncleanly)
+						mountCommand 	= "sudo mount -o uid=pi,gid=pi {0} /mnt/usb".format(drive)
+						unMountCommand  = "sudo umount {0}".format(drive)
+						#print("mount   = {0}".format(mountCommand))
+						#print("unmount = {0}".format(unMountCommand))
+						os.system(mountCommand)
+						sleep(0.5)
+						os.system(unMountCommand)
+						sleep(0.5)
+						os.system(mountCommand)
+						sleep(0.5)
+						#print ("USB mounted at {0}".format(drive))
 
-	except:
-		print("error checking USB - ignore for now")
+						if (Path(destinationPath).exists()):
+							print ("Drive {0} has valid storage folder".format(drive))
+							usbDevicePath = drive
+							usbmounted= True
+						else:  #not valid so unmount
+							os.system(unMountCommand)
+							sleep(0.5)
+						
+					except:
+						print("unable to mount {0} possible unknown (bitlocker type) format".format(drive))
+				else:
+					#already mounted a valid case so ignore any other tests
+					print("Ignore checking {0}".format(drive))
+
+	else:	# it is already mounted
+		if (usbDevicePath !="") and (not Path(usbDevicePath).exists()):
+			print ("Error USB ejected without clean removal")
+			#statusDisplay("USB was removed","",0xF800)
+			os.chdir(r'/home/pi')
+			usbmounted = False
+			os.system("sudo umount {0}".format(usbDevicePath))
+			usbDevicePath =""
+			sleep(1)
+			print ("USB unmounted")
+
 
 
 def drawUSB( status):
@@ -723,7 +776,8 @@ gotListing = False
 idleCount =0
 
 yBottom =179
-destinationPath = r'/mnt/usb/images'
+destinationPath = r'/mnt/usb/camerabackup'
+
 
 cDrivers = CDLL(r"/home/pi/cameratool/linux_spi_c2py.so")
 
@@ -752,7 +806,7 @@ if (cDrivers.initSPIHardware()):
 	try:
 		#print("starting")
 		cDrivers.displayString(120,15,"Camera Backup",0xFFFF,backgroundColour,1)
-		cDrivers.displayString(120,220,"V2.1",0xFFFF,backgroundColour,1)
+		cDrivers.displayString(120,220,"V2.2",0xFFFF,backgroundColour,1)
 		
 		clearLine(40)
 		cDrivers.displayString(120,40,"Camera Unknown",0xF800,backgroundColour,1)
@@ -799,8 +853,8 @@ if (cDrivers.initSPIHardware()):
 							cDrivers.ScreenUpdate()	
 							storageOkay = True
 					except:
-						statusDisplay("No images folder on USB","Unable to use drive",0xF800)
-						print ("no images folder on USB")
+						statusDisplay("Missing camerabackup folder","Unable to use drive",0xF800)
+						print ("no camerabackup folder on USB")
 						directoryChecked = True
 						storageOkay = False	
 
@@ -877,7 +931,7 @@ if (cDrivers.initSPIHardware()):
 							#print("idle")
 							idleCount +=1
 							if((usbmounted) and (storageOkay==False)):
-								statusDisplay("No images folder on USB","Unable to use drive",0xF800)
+								statusDisplay("Missing camerabackup folder","Unable to use drive",0xF800)
 							#print("invalid USB")
 					
 
@@ -892,7 +946,8 @@ if (cDrivers.initSPIHardware()):
 
 #try to unmount cleanly
 os.chdir(r'/home/pi')
-os.system(r'sudo umount /dev/sda1')
+if (usbDevicePath!=""):
+	os.system(r'sudo umount '+usbDevicePath)
 
 if (systemShutdown == True):
 	if(rebootNotShutdown == True):
