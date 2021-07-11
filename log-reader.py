@@ -24,14 +24,19 @@ SOURCELOGFILE = '/var/tmp/opencanary-tmp.log'
 
 # very basic code to send a simple email to the defined recipient
 def  SendEmail(emailText):
-  emailMessage = EMAILTEMPLATE + emailText
-  server = smtplib.SMTP(SMTP_SERVER,587)
-  server.ehlo()
-  server.starttls()
-  server.login(SMTP_USERNAME, SMTP_PASSWORD)
-  server.sendmail(SMTP_USERNAME, TO_ADDRESS, emailMessage)
-  server.quit()
-  return
+  emailSent = False
+  try:
+    emailMessage = EMAILTEMPLATE + emailText
+    server = smtplib.SMTP(SMTP_SERVER,587)
+    server.ehlo()
+    server.starttls()
+    server.login(SMTP_USERNAME, SMTP_PASSWORD)
+    server.sendmail(SMTP_USERNAME, TO_ADDRESS, emailMessage)
+    server.quit()
+    emailSent = True
+  except:
+    print("Error sending Emails - Log not Emptied")
+  return emailSent
 
 # utility to find the value for a given source parameter.
 # sample of event string elements is
@@ -51,7 +56,8 @@ def findParam(sourceEvent,checkString):
             print("no matching end \n")
     return result
 
-#basic parser for each line of text to see if it is one of the whitelisted events that do not need reporting
+
+#basic parser for each line of text to see if it is one of the whitelisted even$
 def CheckLine (sourceEvent):
      sendTheEmail = True
      print("checking line > {}\n",sourceEvent)
@@ -59,8 +65,8 @@ def CheckLine (sourceEvent):
      sourceIP        = findParam(sourceEvent,"src_host")
      destinationPort = findParam(sourceEvent,"dst_port")
      sourcePort      = findParam(sourceEvent,"src_port")
-     print("source IP: {}   destination port: {} \n".format(sourceIP,destinationPort))
-     #better code would be to use a config file, but for now lets just add some simple cases
+     print("source IP: {}   destination port: {} \n".format(sourceIP,destinatio$
+     #better code would be to use a config file, but for now lets just add some$
      if(sourceIP =="127.0.0.1"):
          if(destinationPort=="631"):
              #local port on Rpi  doing a regular check of the printer port
@@ -75,13 +81,15 @@ def CheckLine (sourceEvent):
                  if(destinationPort == "139"):
                       #main PC on wired network
                       sendTheEmail = False
-     displayCommand = "{0}:{1} > {2}  ".format (sourceIP,sourcePort,destinationPort)
+     displayCommand = "{0}:{1} > {2}  ".format (sourceIP,sourcePort,destination$
      if (sendTheEmail):
-         displayCommand += '\033[31;40m UNKNOWN \033[37;40m'
+         displayCommand += '\033[31;40m UNKNOWN \033[37;40m\n'
      else:
-         displayCommand += '\033[32;40m Ignored \033[37;40m'
+         displayCommand += '\033[32;40m Ignored \033[37;40m\n'
 
-     f = open("/dev/tty1", "w")
+# change this tty to tty1 if you are using a dedicated screen hat
+# tty will just display to the active screen you are logged on to.
+     f = open("/dev/tty", "w")
      f.write(displayCommand)
      f.close()
      return sendTheEmail
@@ -100,10 +108,15 @@ for line in file2:
     else:
         print("ignoring line\n\r")
 file2.close
-#this is a bit crude but acts as a simple emptying of the source file
-file2 = open(SOURCELOGFILE,'w')
-file2.writelines([])
-file2.close
 
 if (count >0):
-    SendEmail (localText)
+    emailsSent= SendEmail (localText)
+    if(emailsSent):
+      #this is a bit crude but acts as a simple emptying of the source file
+      # Only clear the log if the email was sent
+      # if not the log will remain and next time it will re-try
+      file2 = open(SOURCELOGFILE,'w')
+      file2.writelines([])
+      file2.close
+
+
