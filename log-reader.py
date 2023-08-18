@@ -57,7 +57,8 @@ def findParam(sourceEvent,checkString):
     return result
 
 
-#basic parser for each line of text to see if it is one of the whitelisted even$
+#basic parser for each line of text to see if it is one of the whitelisted events that do not need reporting
+
 def CheckLine (sourceEvent):
      sendTheEmail = True
      print("checking line > {}\n",sourceEvent)
@@ -65,8 +66,9 @@ def CheckLine (sourceEvent):
      sourceIP        = findParam(sourceEvent,"src_host")
      destinationPort = findParam(sourceEvent,"dst_port")
      sourcePort      = findParam(sourceEvent,"src_port")
-     print("source IP: {}   destination port: {} \n".format(sourceIP,destinatio$
-     #better code would be to use a config file, but for now lets just add some$
+     print("source IP: {}   destination port: {} \n".format(sourceIP,destinationPort))
+     #better code would be to use a config file, but for now lets just add some simple cases
+
      if(sourceIP =="127.0.0.1"):
          if(destinationPort=="631"):
              #local port on Rpi  doing a regular check of the printer port
@@ -81,7 +83,8 @@ def CheckLine (sourceEvent):
                  if(destinationPort == "139"):
                       #main PC on wired network
                       sendTheEmail = False
-     displayCommand = "{0}:{1} > {2}  ".format (sourceIP,sourcePort,destination$
+     displayCommand = "{0}:{1} > {2}  ".format (sourceIP,sourcePort,destinationPort)
+
      if (sendTheEmail):
          displayCommand += '\033[31;40m UNKNOWN \033[37;40m\n'
      else:
